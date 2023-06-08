@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,33 +27,38 @@ class MyApp extends StatelessWidget {
 }
 
 class Contact {
+  final String id;
   final String name;
 
-  const Contact({
+  Contact({
     required this.name,
-  });
+  }) : id = const Uuid().v4();
 }
 
-class ContactBook {
-  ContactBook._sharedInstance();
+class ContactBook extends ValueNotifier<List<Contact>> {
+  ContactBook._sharedInstance() : super([]);
   static final ContactBook _shared = ContactBook._sharedInstance();
 
   factory ContactBook() => _shared;
 
-  final List<Contact> _contacts = [];
-
-  int get length => _contacts.length;
+  int get length => value.length;
 
   void add({required Contact contact}) {
-    _contacts.add(contact);
+    final contacts = value;
+    contacts.add(contact);
+    notifyListeners();
   }
 
   void remove({required Contact contact}) {
-    _contacts.remove(contact);
+    final contacts = value;
+    if (contacts.contains(contact)) {
+      contacts.remove(contact);
+      notifyListeners();
+    }
   }
 
   Contact? contact({required int atIndex}) =>
-      _contacts.length > atIndex ? _contacts[atIndex] : null;
+      value.length > atIndex ? value[atIndex] : null;
 }
 
 class MyHomePage extends StatelessWidget {
@@ -60,21 +66,43 @@ class MyHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final contactBook = ContactBook();
     return Scaffold(
       appBar: AppBar(
         title: const Text("Home Page"),
       ),
       body: Column(
         children: [
-          ListView.builder(
-            scrollDirection: Axis.vertical,
-            shrinkWrap: true,
-            itemCount: contactBook.length,
-            itemBuilder: (context, index) {
-              final contact = contactBook.contact(atIndex: index)!;
-              return ListTile(
-                title: Text(contact.name),
+          ValueListenableBuilder(
+            valueListenable: ContactBook(),
+            builder: (context, value, child) {
+              final contacts = value;
+              return ListView.builder(
+                scrollDirection: Axis.vertical,
+                shrinkWrap: true,
+                itemCount: contacts.length,
+                itemBuilder: (context, index) {
+                  final contact = contacts[index];
+                  return Dismissible(
+                    onDismissed: (direction) {
+                      ContactBook().remove(contact: contact);
+                    },
+                    key: ValueKey(contact.id),
+                    child: Material(
+                      color: Colors.white,
+                      elevation: 6.0,
+                      child: ListTile(
+                        title: Container(
+                          margin: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            contact.name,
+                            style: const TextStyle(
+                                fontSize: 24, fontWeight: FontWeight.w400),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -116,13 +144,13 @@ class _ContactViewState extends State<ContactView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Add a new Contact"),
+        title: const Text("Add a new Contact"),
       ),
       body: Column(
         children: [
           TextField(
             controller: _controller,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               hintText: 'Enter a new contact',
             ),
           ),
